@@ -1,3 +1,13 @@
+const acc = 4.6875
+const dec = 50
+const frc = 4.6875
+const top = 120
+const meterOffsetX = -135
+const meterOffsetY = -75
+const dmgCooldown = 500
+const slimeDmgCooldown = 1000
+const fireballCooldown = 1000
+
 class GameScene extends Phaser.Scene {
   constructor() {
     super({
@@ -6,29 +16,51 @@ class GameScene extends Phaser.Scene {
 
     this.cursors
     this.player
+    this.playerCanDoubleJump = false
+    this.playerHasBoots = false
+    this.canShootFireball = false
+    this.canTakeDmg = true
+    this.playerGSP = 0
+    this.playerASP = 0
     this.boots
     this.slimes = []
     this.hearts = []
+    this.fireballs
+    this.meter
+    this.hp = 6
     // this.dinos = []
     // this.eyebats = []
     // this.teleportIn
     // this.teleportOut
     // this.coins = []
-    this.moveSlime = (slime) => {
-      if (slime.body.velocity.x === 0) {
-        slime.setVelocityX(16)
-        slime.flipX = false
-      }
-      if (slime.body.blocked.right) {
-        slime.setVelocityX(-16)
-        slime.flipX = true
-      }
-      if (slime.body.blocked.left) {
-        slime.setVelocityX(16)
-        slime.flipX = false
-      }
+
+  }
+
+  moveSlime(slime) {
+    if (slime.body.velocity.x === 0) {
+      slime.setVelocityX(24)
+      slime.flipX = false
+    }
+    if (slime.body.blocked.right) {
+      slime.setVelocityX(-24)
+      slime.flipX = true
+    }
+    if (slime.body.blocked.left) {
+      slime.setVelocityX(24)
+      slime.flipX = false
     }
   }
+
+  takeDmg(victim) {
+    victim.data.set('canTakeDmg', false)
+
+    if (victim.data.values.hp > 1) {
+      victim.data.values.hp--
+    } else if (victim.data.values.hp === 1) {
+      victim.disableBody(true, true)
+    }
+  }
+
 
   preload() {
     this.load.image('tiles', './src/assets/tiles.png')
@@ -42,8 +74,14 @@ class GameScene extends Phaser.Scene {
     const tileset = map.addTilesetImage('dangerous', 'tiles')
     const layer1 = map.createStaticLayer("map", tileset, 0, 0)
     layer1.setCollisionByProperty({ collides: true })
+    this.fireballs = this.physics.add.group()
+    this.physics.add.collider(this.fireballs, layer1, (fireball, level) => {
+      fireball.anims.play('fireball impact', true)
+    })
 
-    let enemiesSpawnPoints = map.getObjectLayer("spawn")
+    // this.physics.add.collider(this.fireballs, this.slimes)
+
+    map.getObjectLayer("spawn")
       .objects.map((point) => {
         switch (point.name) {
           case "player":
@@ -54,21 +92,46 @@ class GameScene extends Phaser.Scene {
             let slimeIndex = this.slimes.length
             this.slimes[slimeIndex] =
               this.physics.add.sprite(point.x, point.y, 'enemies', 0)
+            this.slimes[slimeIndex].setData('hp', 3)
+            this.slimes[slimeIndex].setData('canTakeDmg', true)
             this.slimes[slimeIndex].anims.play('slime move', true)
             this.physics.add.collider(this.slimes[slimeIndex], layer1)
-            this.physics.add.collider(this.slimes[slimeIndex], this.player)
+            this.physics.add.collider(this.slimes[slimeIndex], this.player,
+              (slime, player) => {
+              if (this.hp > 1 && this.canTakeDmg) {
+                this.hp--
+                let a = Math.sign(player.x - slime.x)
+                player.setVelocityY(-120)
+                this.playerGSP = 120 * a
+                this.canTakeDmg = false
+              } else if (this.hp === 1) {
+                this.scene.stop()
+              }
+            })
+            this.physics.add.collider(this.slimes[slimeIndex], this.fireballs,
+              (slime, fireball) => {
+                fireball.anims.play('fireball impact', true)
+                if (slime.data.values.canTakeDmg) this.takeDmg(slime)
+            })
             break;
           case "heart":
             let heartIndex = this.hearts.length
             this.hearts[heartIndex] =
               this.physics.add.sprite(point.x, point.y, 'items', 13)
-            this.physics.add.collider(this.hearts[heartIndex], this.player)
+            this.physics.add.collider(this.hearts[heartIndex], this.player,
+              (heart, player) => {
+              if (this.hp < 6) {
+                this.hp++
+              }
+              heart.disableBody(true, true)
+            })
             this.physics.add.collider(this.hearts[heartIndex], layer1)
             break;
           case "boots":
             this.boots = this.physics.add.sprite(point.x, point.y, 'items', 12)
             this.physics.add.collider(this.boots, this.player, (boots, player) => {
               boots.disableBody(true, true)
+              this.playerHasBoots = true
             })
             this.physics.add.collider(this.boots, layer1)
             break;
@@ -86,41 +149,78 @@ class GameScene extends Phaser.Scene {
     //   collidingTileColor: new Phaser.Display.Color(243, 134, 48, 255), // Color of colliding tiles
     //   faceColor: new Phaser.Display.Color(40, 39, 37, 255) // Color of colliding face edges
     // });
+
+    this.input.keyboard.on('keydown_UP', (e) => {
+      if (this.player.body.blocked.down) {
+        this.player.setVelocityY(-200)
+        this.playerCanDoubleJump = true
+      } else if (this.playerCanDoubleJump && this.playerHasBoots) {
+        this.player.setVelocityY(-200)
+        this.playerCanDoubleJump = false
+      }
+    })
+
+    this.input.keyboard.on('keydown_SPACE', (e) => {
+      if (!this.canShootFireball) return
+      let direction = this.player.flipX ? -1 : 1
+      let fireball = this.fireballs.create(this.player.x, this.player.y, 'items', '8')
+      if (direction === -1) fireball.flipX = true
+      fireball.setVelocityX(direction * 200)
+      fireball.setCircle(5, 4, 3)
+      fireball.body.setAllowGravity(false)
+      this.canShootFireball = false
+      fireball.on('animationcomplete', (anim, frame) => {
+        if (anim.key === 'fireball impact') {
+          fireball.destroy()
+        }
+      })
+    })
+
+    this.meter = this.add.image(this.player.x + meterOffsetX,
+      this.player.y + meterOffsetY, 'meter', '0')
+
   }
 
   update(time, delta) {
-    console.log(`seconds: ${(time / 1000).toFixed(2)}, delta: ${delta}` );
+    // prevent player from taking more than one dmg at a time
+    if (time % dmgCooldown < delta) this.canTakeDmg = true
+    if (time % fireballCooldown < delta) this.canShootFireball = true
+    // sync the health meter with the hp var
+    if (this.hp) this.meter.setFrame(this.hp - 1)
+    this.meter.setPosition(this.player.x + meterOffsetX,
+      this.player.y + meterOffsetY)
+
     this.slimes.forEach((slime) => {
+      if (time % slimeDmgCooldown < delta) slime.data.values.canTakeDmg = true
+
       this.moveSlime(slime)
     })
 
-    if (!this.player.body.blocked.down) {
-      this.player.anims.play('player jump', true)
-    }
-
-    this.input.keyboard.once('keydown_UP', () => {
-      if (!this.player.body.blocked.down) return
-      this.player.setVelocityY(-200);
-    }, this)
-
     if (this.cursors.left.isDown) {
-        this.player.setVelocityX(-120)
-        this.player.flipX = true
-        if (this.player.anims.currentAnim.key === 'player idle') {
-          this.player.anims.play('player run', true)
-        }
-    } else if (this.cursors.right.isDown) {
-      this.player.setVelocityX(120)
-      this.player.flipX = false
-      if (this.player.anims.currentAnim.key === 'player idle') {
-        this.player.anims.play('player run', true)
+      this.player.flipX = true
+      if (this.playerGSP > 0) {
+        this.playerGSP -= dec;
+      } else if (this.playerGSP > -top) {
+        this.playerGSP -= acc;
       }
-    } else if (this.cursors.space.isDown) {
-      this.player.anims.play('player attack', false)
-    } else if (!this.player.anims.isPlaying) {
-      this.player.anims.play('player idle', true);
-    } else {
-      this.player.setVelocityX(0);
+    } else if (this.cursors.right.isDown) {
+      this.player.flipX = false
+      if (this.playerGSP < 0) {
+        this.playerGSP += dec;
+      } else if (this.playerGSP < top) {
+        this.playerGSP += acc;
+      }
+    } else if (this.canTakeDmg){
+      this.playerGSP -= Math.min(Math.abs(this.playerGSP), frc)
+        * Math.sign(this.playerGSP);
+    } else if (!this.canTakeDmg) {
+      this.player.setFrame(4)
+    }
+    this.player.setVelocityX(this.playerGSP)
+    if (this.player.body.velocity.x) {
+      this.player.anims.play('player run', true)
+    } else if (this.canTakeDmg){
+      this.player.setFrame(5)
     }
   }
 }

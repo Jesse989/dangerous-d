@@ -12,6 +12,10 @@ class BootScene extends Phaser.Scene {
   preload() {
     // main point of boot scene is to
     // preload these assets
+    this.load.spritesheet('meter',
+      './src/assets/meter.png',
+      { frameWidth: 28, frameHeight: 7 }
+    )
 
     this.load.spritesheet('player',
       './src/assets/player.png',

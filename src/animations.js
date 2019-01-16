@@ -115,10 +115,10 @@ const animationConfig = {
     },
     impact: {
       textureKey: 'items',
-      frames: { frames: [ 8, 9, 10, 11 ]},
-      frameRate: 3,
+      frames: { frames: [ 10, 11 ]},
+      frameRate: 10,
       yoyo: false,
-      repeat: -1
+      repeat: 0
     }
   }
 
