@@ -1,7 +1,7 @@
 const acc = 4.6875
-const dec = 50
+const dec = 5.0
 const frc = 4.6875
-const top = 120
+const top = 100
 const meterOffsetX = -135
 const meterOffsetY = -75
 const dmgCooldown = 500
@@ -16,6 +16,8 @@ class GameScene extends Phaser.Scene {
 
     this.cursors
     this.player
+    this.playerCrystalCount = 0
+    this.crystalText
     this.playerCanDoubleJump = false
     this.playerHasBoots = false
     this.canShootFireball = false
@@ -25,14 +27,15 @@ class GameScene extends Phaser.Scene {
     this.boots
     this.slimes = []
     this.hearts = []
+    this.crystals = []
     this.fireballs
     this.meter
     this.hp = 6
+
     // this.dinos = []
     // this.eyebats = []
     // this.teleportIn
     // this.teleportOut
-    // this.coins = []
 
   }
 
@@ -51,16 +54,21 @@ class GameScene extends Phaser.Scene {
     }
   }
 
-  takeDmg(victim) {
+  takeDmg(weapon, victim) {
     victim.data.set('canTakeDmg', false)
-
+    let direction = Math.sign(weapon.x - victim.x)
+    victim.setVelocityX(direction * 75)
+    if (victim.body.velocity.x < 0) {
+      victim.flipX = true
+    } else {
+      victim.flipX = false
+    }
     if (victim.data.values.hp > 1) {
       victim.data.values.hp--
     } else if (victim.data.values.hp === 1) {
       victim.disableBody(true, true)
     }
   }
-
 
   preload() {
     this.load.image('tiles', './src/assets/tiles.png')
@@ -72,14 +80,16 @@ class GameScene extends Phaser.Scene {
 
     const map = this.make.tilemap({ key: 'map' })
     const tileset = map.addTilesetImage('dangerous', 'tiles')
+    const aiCollidors = map.createStaticLayer("aiCollidors", tileset, 0, 0)
     const layer1 = map.createStaticLayer("map", tileset, 0, 0)
+    const exit = map.createStaticLayer("exit", tileset, 0, 0)
     layer1.setCollisionByProperty({ collides: true })
+    aiCollidors.setCollisionByProperty({ aiCollidor: true })
+    
     this.fireballs = this.physics.add.group()
     this.physics.add.collider(this.fireballs, layer1, (fireball, level) => {
       fireball.anims.play('fireball impact', true)
     })
-
-    // this.physics.add.collider(this.fireballs, this.slimes)
 
     map.getObjectLayer("spawn")
       .objects.map((point) => {
@@ -95,7 +105,10 @@ class GameScene extends Phaser.Scene {
             this.slimes[slimeIndex].setData('hp', 3)
             this.slimes[slimeIndex].setData('canTakeDmg', true)
             this.slimes[slimeIndex].anims.play('slime move', true)
+            this.slimes[slimeIndex].body.setImmovable(true)
+
             this.physics.add.collider(this.slimes[slimeIndex], layer1)
+            this.physics.add.collider(this.slimes[slimeIndex], aiCollidors)
             this.physics.add.collider(this.slimes[slimeIndex], this.player,
               (slime, player) => {
               if (this.hp > 1 && this.canTakeDmg) {
@@ -111,7 +124,7 @@ class GameScene extends Phaser.Scene {
             this.physics.add.collider(this.slimes[slimeIndex], this.fireballs,
               (slime, fireball) => {
                 fireball.anims.play('fireball impact', true)
-                if (slime.data.values.canTakeDmg) this.takeDmg(slime)
+                if (slime.data.values.canTakeDmg) this.takeDmg(fireball, slime)
             })
             break;
           case "heart":
@@ -135,6 +148,19 @@ class GameScene extends Phaser.Scene {
             })
             this.physics.add.collider(this.boots, layer1)
             break;
+          case "crystal":
+            let crystalIndex = this.crystals.length
+            this.crystals[crystalIndex] =
+              this.physics.add.sprite(point.x, point.y, 'items', 4)
+              this.crystals[crystalIndex].anims.play('crystal idle', true)
+              this.crystals[crystalIndex].body.setAllowGravity(false)
+              this.physics.add.collider(this.crystals[crystalIndex], this.player,
+                (crystal, player) => {
+                  this.playerCrystalCount++
+                  console.log(`crystal count is: ${this.playerCrystalCount}`);
+              crystal.disableBody(true, true)
+          })
+            break;
           default:
 
         }
@@ -144,11 +170,11 @@ class GameScene extends Phaser.Scene {
     this.cameras.main.setZoom(4)
 
     // const debugGraphics = this.add.graphics().setAlpha(0.75);
-    // layer1.renderDebug(debugGraphics, {
-    //   tileColor: null, // Color of non-colliding tiles
-    //   collidingTileColor: new Phaser.Display.Color(243, 134, 48, 255), // Color of colliding tiles
-    //   faceColor: new Phaser.Display.Color(40, 39, 37, 255) // Color of colliding face edges
-    // });
+    //  aiCollidors.renderDebug(debugGraphics, {
+    //    tileColor: null, // Color of non-colliding tiles
+    //    collidingTileColor: new Phaser.Display.Color(243, 134, 48, 255), // Color of colliding tiles
+    //    faceColor: new Phaser.Display.Color(40, 39, 37, 255) // Color of colliding face edges
+    //  });
 
     this.input.keyboard.on('keydown_UP', (e) => {
       if (this.player.body.blocked.down) {
@@ -161,11 +187,13 @@ class GameScene extends Phaser.Scene {
     })
 
     this.input.keyboard.on('keydown_SPACE', (e) => {
+      if (!this.player.body.blocked.down) return
       if (!this.canShootFireball) return
       let direction = this.player.flipX ? -1 : 1
       let fireball = this.fireballs.create(this.player.x, this.player.y, 'items', '8')
       if (direction === -1) fireball.flipX = true
-      fireball.setVelocityX(direction * 200)
+      fireball.anims.play('fireball move', true)
+      fireball.setVelocityX(direction * 100)
       fireball.setCircle(5, 4, 3)
       fireball.body.setAllowGravity(false)
       this.canShootFireball = false
@@ -178,6 +206,10 @@ class GameScene extends Phaser.Scene {
 
     this.meter = this.add.image(this.player.x + meterOffsetX,
       this.player.y + meterOffsetY, 'meter', '0')
+
+    // need to get bitmap text object
+    // this.crystalText = this.add.text(this.meter.x + 50, this.meter.y + 25, 'score: 0', { fontSize: '8px', fill: '#fff' })
+
 
   }
 
@@ -192,7 +224,6 @@ class GameScene extends Phaser.Scene {
 
     this.slimes.forEach((slime) => {
       if (time % slimeDmgCooldown < delta) slime.data.values.canTakeDmg = true
-
       this.moveSlime(slime)
     })
 
@@ -213,7 +244,7 @@ class GameScene extends Phaser.Scene {
     } else if (this.canTakeDmg){
       this.playerGSP -= Math.min(Math.abs(this.playerGSP), frc)
         * Math.sign(this.playerGSP);
-    } else if (!this.canTakeDmg) {
+    } else if (!this.canTakeDmg ) {
       this.player.setFrame(4)
     }
     this.player.setVelocityX(this.playerGSP)

@@ -6,35 +6,6 @@ const animationConfig = {
       frameRate: 10,
       yoyo: false,
       repeat: 0
-    },
-    attack: {
-      textureKey: 'player',
-      frames: { frames: [5, 3]},
-      frameRate: 10,
-      yoyo: true,
-      repeat: 0
-    },
-    jump: {
-      textureKey: 'player',
-      frames: { frames: [4]},
-      frameRate: 6,
-      yoyo: false,
-      repeat: 0
-    },
-    die: {
-      textureKey: 'player',
-      frames: { frames: [5, 7]},
-      frameRate: 3
-    },
-    damage: {
-      textureKey: 'player',
-      frames: { frames: [5, 6]},
-      frameRate: 3,
-      yoyo: true
-    },
-    idle: {
-      textureKey: 'player',
-      frames: { frames: [5]}
     }
   },
   slime: {
@@ -89,7 +60,7 @@ const animationConfig = {
       repeat: -1
     }
   },
-  coin: {
+  crystal: {
     idle: {
       textureKey: 'items',
       frames: { start: 4, end: 7 },
@@ -108,8 +79,8 @@ const animationConfig = {
     },
     move: {
       textureKey: 'items',
-      frames: { frames: [ 10, 9 ] },
-      frameRate: 10,
+      frames: { frames: [ 8, 9, 10 ] },
+      frameRate: 15,
       yoyo: true,
       repeat: -1
     },
