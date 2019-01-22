@@ -31,6 +31,10 @@ class BootScene extends Phaser.Scene {
       './src/assets/items.png',
       { frameWidth: 16, frameHeight: 16 }
     )
+    this.load.bitmapFont('font',
+      './src/assets/font.png',
+      './src/assets/font.fnt');
+
 
     this.load.on('complete', ()=> {
       loadAnimations(this)

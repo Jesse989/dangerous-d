@@ -2,11 +2,11 @@ const acc = 4.6875
 const dec = 5.0
 const frc = 4.6875
 const top = 100
-const meterOffsetX = -135
+const meterOffsetX = -125
 const meterOffsetY = -75
 const dmgCooldown = 500
-const slimeDmgCooldown = 1000
-const fireballCooldown = 1000
+const slimeDmgCooldown = 3000
+const fireballCooldown = 3000
 
 class GameScene extends Phaser.Scene {
   constructor() {
@@ -18,6 +18,7 @@ class GameScene extends Phaser.Scene {
     this.player
     this.playerCrystalCount = 0
     this.crystalText
+    this.hudCrystal
     this.playerCanDoubleJump = false
     this.playerHasBoots = false
     this.canShootFireball = false
@@ -85,7 +86,7 @@ class GameScene extends Phaser.Scene {
     const exit = map.createStaticLayer("exit", tileset, 0, 0)
     layer1.setCollisionByProperty({ collides: true })
     aiCollidors.setCollisionByProperty({ aiCollidor: true })
-    
+
     this.fireballs = this.physics.add.group()
     this.physics.add.collider(this.fireballs, layer1, (fireball, level) => {
       fireball.anims.play('fireball impact', true)
@@ -157,7 +158,7 @@ class GameScene extends Phaser.Scene {
               this.physics.add.collider(this.crystals[crystalIndex], this.player,
                 (crystal, player) => {
                   this.playerCrystalCount++
-                  console.log(`crystal count is: ${this.playerCrystalCount}`);
+                  this.crystalText.setText(`${this.playerCrystalCount}`)
               crystal.disableBody(true, true)
           })
             break;
@@ -204,11 +205,11 @@ class GameScene extends Phaser.Scene {
       })
     })
 
-    this.meter = this.add.image(this.player.x + meterOffsetX,
-      this.player.y + meterOffsetY, 'meter', '0')
+    this.meter = this.add.image(0, 0, 'meter', '0')
+    this.hudCrystal = this.add.sprite(0, 0, 'items', '4')
+    this.hudCrystal.anims.play('crystal idle', true)
 
-    // need to get bitmap text object
-    // this.crystalText = this.add.text(this.meter.x + 50, this.meter.y + 25, 'score: 0', { fontSize: '8px', fill: '#fff' })
+    this.crystalText = this.add.bitmapText(0, 0, 'font', `${this.playerCrystalCount}`, 8)
 
 
   }
@@ -221,6 +222,10 @@ class GameScene extends Phaser.Scene {
     if (this.hp) this.meter.setFrame(this.hp - 1)
     this.meter.setPosition(this.player.x + meterOffsetX,
       this.player.y + meterOffsetY)
+    this.hudCrystal.setPosition(this.meter.x + 24,
+      this.meter.y - 1)
+    this.crystalText.setPosition(this.hudCrystal.x + 10,
+      this.hudCrystal.y - 3)
 
     this.slimes.forEach((slime) => {
       if (time % slimeDmgCooldown < delta) slime.data.values.canTakeDmg = true
