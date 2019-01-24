@@ -1,9 +1,11 @@
+import buildMap from '../helpers/buildMap.js'
+
 const acc = 4.6875
-const dec = 5.0
+const dec = 7.0
 const frc = 4.6875
-const top = 100
-const meterOffsetX = -125
-const meterOffsetY = -75
+const top = 80
+const meterOffsetX = -100
+const meterOffsetY = -60
 const dmgCooldown = 500
 const slimeDmgCooldown = 3000
 const fireballCooldown = 3000
@@ -32,6 +34,10 @@ class GameScene extends Phaser.Scene {
     this.fireballs
     this.meter
     this.hp = 6
+
+    this.jumpSound
+    this.pickupSound
+    this.fireSound
 
     // this.dinos = []
     // this.eyebats = []
@@ -77,98 +83,16 @@ class GameScene extends Phaser.Scene {
   }
 
   create() {
+    this.jumpSound = this.sound.add('jump');
+    this.pickupSound = this.sound.add('pickup');
+    this.fireSound = this.sound.add('fire');
+    this.pwrSound = this.sound.add('pwr');
+
     this.cursors = this.input.keyboard.createCursorKeys();
 
-    const map = this.make.tilemap({ key: 'map' })
-    const tileset = map.addTilesetImage('dangerous', 'tiles')
-    const aiCollidors = map.createStaticLayer("aiCollidors", tileset, 0, 0)
-    const layer1 = map.createStaticLayer("map", tileset, 0, 0)
-    const exit = map.createStaticLayer("exit", tileset, 0, 0)
-    layer1.setCollisionByProperty({ collides: true })
-    aiCollidors.setCollisionByProperty({ aiCollidor: true })
-
-    this.fireballs = this.physics.add.group()
-    this.physics.add.collider(this.fireballs, layer1, (fireball, level) => {
-      fireball.anims.play('fireball impact', true)
-    })
-
-    map.getObjectLayer("spawn")
-      .objects.map((point) => {
-        switch (point.name) {
-          case "player":
-            this.player = this.physics.add.sprite(point.x, point.y, 'player', '5')
-            this.physics.add.collider(this.player, layer1);
-            break;
-          case "slime":
-            let slimeIndex = this.slimes.length
-            this.slimes[slimeIndex] =
-              this.physics.add.sprite(point.x, point.y, 'enemies', 0)
-            this.slimes[slimeIndex].setData('hp', 3)
-            this.slimes[slimeIndex].setData('canTakeDmg', true)
-            this.slimes[slimeIndex].anims.play('slime move', true)
-            this.slimes[slimeIndex].body.setImmovable(true)
-
-            this.physics.add.collider(this.slimes[slimeIndex], layer1)
-            this.physics.add.collider(this.slimes[slimeIndex], aiCollidors)
-            this.physics.add.collider(this.slimes[slimeIndex], this.player,
-              (slime, player) => {
-              if (this.hp > 1 && this.canTakeDmg) {
-                this.hp--
-                let a = Math.sign(player.x - slime.x)
-                player.setVelocityY(-120)
-                this.playerGSP = 120 * a
-                this.canTakeDmg = false
-              } else if (this.hp === 1) {
-                this.scene.stop()
-              }
-            })
-            this.physics.add.collider(this.slimes[slimeIndex], this.fireballs,
-              (slime, fireball) => {
-                fireball.anims.play('fireball impact', true)
-                if (slime.data.values.canTakeDmg) this.takeDmg(fireball, slime)
-            })
-            break;
-          case "heart":
-            let heartIndex = this.hearts.length
-            this.hearts[heartIndex] =
-              this.physics.add.sprite(point.x, point.y, 'items', 13)
-            this.physics.add.collider(this.hearts[heartIndex], this.player,
-              (heart, player) => {
-              if (this.hp < 6) {
-                this.hp++
-              }
-              heart.disableBody(true, true)
-            })
-            this.physics.add.collider(this.hearts[heartIndex], layer1)
-            break;
-          case "boots":
-            this.boots = this.physics.add.sprite(point.x, point.y, 'items', 12)
-            this.physics.add.collider(this.boots, this.player, (boots, player) => {
-              boots.disableBody(true, true)
-              this.playerHasBoots = true
-            })
-            this.physics.add.collider(this.boots, layer1)
-            break;
-          case "crystal":
-            let crystalIndex = this.crystals.length
-            this.crystals[crystalIndex] =
-              this.physics.add.sprite(point.x, point.y, 'items', 4)
-              this.crystals[crystalIndex].anims.play('crystal idle', true)
-              this.crystals[crystalIndex].body.setAllowGravity(false)
-              this.physics.add.collider(this.crystals[crystalIndex], this.player,
-                (crystal, player) => {
-                  this.playerCrystalCount++
-                  this.crystalText.setText(`${this.playerCrystalCount}`)
-              crystal.disableBody(true, true)
-          })
-            break;
-          default:
-
-        }
-    })
-
+    buildMap(this)
     this.cameras.main.startFollow(this.player)
-    this.cameras.main.setZoom(4)
+    this.cameras.main.setZoom(5)
 
     // const debugGraphics = this.add.graphics().setAlpha(0.75);
     //  aiCollidors.renderDebug(debugGraphics, {
@@ -178,22 +102,45 @@ class GameScene extends Phaser.Scene {
     //  });
 
     this.input.keyboard.on('keydown_UP', (e) => {
+
       if (this.player.body.blocked.down) {
         this.player.setVelocityY(-200)
+        this.jumpSound.play({
+          mute: false,
+          volume: .6,
+          rate: .8,
+          detune: 0,
+          loop: false,
+        })
         this.playerCanDoubleJump = true
       } else if (this.playerCanDoubleJump && this.playerHasBoots) {
         this.player.setVelocityY(-200)
+        this.jumpSound.play({
+          mute: false,
+          volume: .6,
+          rate: .8,
+          detune: 0,
+          loop: false,
+        })
         this.playerCanDoubleJump = false
       }
     })
 
     this.input.keyboard.on('keydown_SPACE', (e) => {
+
       if (!this.player.body.blocked.down) return
       if (!this.canShootFireball) return
       let direction = this.player.flipX ? -1 : 1
       let fireball = this.fireballs.create(this.player.x, this.player.y, 'items', '8')
       if (direction === -1) fireball.flipX = true
       fireball.anims.play('fireball move', true)
+      this.fireSound.play({
+        mute: false,
+        volume: .6,
+        rate: .8,
+        detune: 0,
+        loop: false,
+      })
       fireball.setVelocityX(direction * 100)
       fireball.setCircle(5, 4, 3)
       fireball.body.setAllowGravity(false)
